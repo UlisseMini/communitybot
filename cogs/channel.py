@@ -196,24 +196,60 @@ class ChannelManagement(commands.Cog):
             logging.error(f"Unexpected error setting channel for user {user.id} in guild {guild.id}: {str(e)}")
             await ctx.respond("An unexpected error occurred. Please try again later.", ephemeral=True)
 
-    @channels.command(description="[Admin] Set the welcome message for new members")
+    @channels.command(description="[Admin] Set welcome message by copying from an existing message")
     @discord.default_permissions(administrator=True)
-    @option("message", description="Welcome message template. Use {name} for username, {channel} for their channel")
-    async def welcome(self, ctx, message: str):
+    @option("message_link", description="Link to the message to copy (right-click message -> Copy Message Link)")
+    async def welcome(self, ctx, message_link: str):
         guild = ctx.guild
         if not guild:
             await ctx.respond("This command can only be used in a server.", ephemeral=True)
             return
 
         try:
-            await set_welcome_message(guild.id, message, guild.name)
+            # Parse message link: https://discord.com/channels/GUILD_ID/CHANNEL_ID/MESSAGE_ID
+            parts = message_link.strip().split("/")
+            if len(parts) < 3:
+                await ctx.respond("Invalid message link. Right-click a message and select 'Copy Message Link'.", ephemeral=True)
+                return
+
+            try:
+                channel_id = int(parts[-2])
+                message_id = int(parts[-1])
+            except ValueError:
+                await ctx.respond("Invalid message link. Right-click a message and select 'Copy Message Link'.", ephemeral=True)
+                return
+
+            # Fetch the message
+            channel = guild.get_channel(channel_id)
+            if not channel:
+                await ctx.respond("Could not find that channel. Make sure the message is in this server.", ephemeral=True)
+                return
+
+            try:
+                source_message = await channel.fetch_message(message_id)
+            except discord.NotFound:
+                await ctx.respond("Could not find that message. It may have been deleted.", ephemeral=True)
+                return
+
+            if not source_message.content:
+                await ctx.respond("That message has no text content.", ephemeral=True)
+                return
+
+            # Store the welcome message
+            await set_welcome_message(guild.id, source_message.content, guild.name)
 
             # Show a preview with example substitutions
-            preview = message.replace("{name}", ctx.author.mention).replace("{channel}", "#example-channel")
+            preview = source_message.content.replace("{name}", ctx.author.mention).replace("{channel}", "#example-channel")
             await ctx.respond(
                 f"Welcome message updated!\n\n**Preview:**\n{preview}",
                 ephemeral=True
             )
+        except discord.Forbidden:
+            await ctx.respond("I don't have permission to read that message.", ephemeral=True)
+        except discord.HTTPException as e:
+            error_msg = e.text if hasattr(e, 'text') else str(e)
+            logging.error(f"Failed to fetch message for welcome in guild {guild.id}: {error_msg}")
+            await ctx.respond("Failed to fetch message. Please try again later.", ephemeral=True)
         except Exception as e:
             logging.error(f"Unexpected error setting welcome message in guild {guild.id}: {str(e)}")
             await ctx.respond("An unexpected error occurred. Please try again later.", ephemeral=True)
