@@ -6,9 +6,39 @@ import logging
 from db.connection import database
 from db.actions import get_user_channel, create_user_channel, delete_user_channel, get_welcome_message, set_welcome_message
 
+def _generate_channel_name(member: discord.Member, category: discord.CategoryChannel) -> str:
+    """Generate a unique channel name for a member.
+    Tries in order: display name, username, then adds numeric suffix if needed."""
+    candidates = [
+        member.display_name.lower().replace(" ", "-"),
+        member.name.lower().replace(" ", "-"),
+    ]
+
+    for candidate in candidates:
+        # Clean the name to only include valid characters
+        base_name = re.sub(r'[^a-z0-9_-]', '', candidate)
+        if not base_name:
+            continue
+
+        # Try the base name first
+        if not discord.utils.get(category.channels, name=base_name):
+            return base_name
+
+        # Try with numeric suffix
+        suffix = 1
+        while True:
+            channel_name = f"{base_name}-{suffix}"
+            if not discord.utils.get(category.channels, name=channel_name):
+                return channel_name
+            suffix += 1
+
+    # Fallback to user ID if all else fails
+    return f"user-{member.id}"
+
+
 class ChannelManagement(commands.Cog):
     channels = discord.SlashCommandGroup("channel", "Personal channel management")
-    
+
     def _validate_channel_name(self, name: str) -> tuple[bool, str]:
         """Validate channel name according to Discord's specifications.
         Returns (is_valid, error_message)"""
@@ -278,18 +308,8 @@ class ChannelManagement(commands.Cog):
             if not category:
                 category = await guild.create_category("Personal Channels")
 
-            # Generate channel name with fallback
-            base_name = member.name.lower().replace(" ", "-")
-            # Clean the name to only include valid characters
-            base_name = re.sub(r'[^a-z0-9_-]', '', base_name)
-            if not base_name:
-                base_name = f"user-{member.id}"
-
-            channel_name = base_name
-            suffix = 1
-            while discord.utils.get(guild.channels, name=channel_name, category=category):
-                channel_name = f"{base_name}-{suffix}"
-                suffix += 1
+            # Generate channel name
+            channel_name = _generate_channel_name(member, category)
 
             # Create the channel
             channel = await guild.create_text_channel(channel_name, category=category)
