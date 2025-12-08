@@ -101,20 +101,20 @@ class ChannelManagement(commands.Cog):
         if not guild:
             await ctx.respond("This command can only be used in a server.", ephemeral=True)
             return
-        
+
         # Validate channel name
         is_valid, error_message = self._validate_channel_name(name)
         if not is_valid:
             await ctx.respond(f"Invalid channel name: {error_message}", ephemeral=True)
             return
-        
+
         try:
             # Check if user has a personal channel in this guild
             existing_channel_id = await get_user_channel(guild.id, ctx.author.id)
             if not existing_channel_id:
                 await ctx.respond("You don't have a personal channel in this server.", ephemeral=True)
                 return
-            
+
             # Get the channel object
             existing_channel = guild.get_channel(existing_channel_id)
             if not existing_channel:
@@ -122,10 +122,10 @@ class ChannelManagement(commands.Cog):
                 await delete_user_channel(guild.id, ctx.author.id)
                 await ctx.respond("Your personal channel was deleted. Please create a new one.", ephemeral=True)
                 return
-            
+
             # Rename the channel
             await existing_channel.edit(name=name)
-            
+
             await ctx.respond(f"Your personal channel has been renamed to {existing_channel.mention}", ephemeral=True)
         except discord.Forbidden:
             await ctx.respond("I don't have permission to edit channels. Please check my permissions.", ephemeral=True)
@@ -136,7 +136,66 @@ class ChannelManagement(commands.Cog):
         except Exception as e:
             logging.error(f"Unexpected error renaming channel in guild {guild.id}: {str(e)}")
             await ctx.respond("An unexpected error occurred. Please try again later.", ephemeral=True)
-    
+
+    @channels.command(description="[Admin] Set an existing channel as a user's personal channel")
+    @discord.default_permissions(administrator=True)
+    @option("user", description="The user to assign the channel to")
+    @option("channel", description="The channel to assign")
+    async def set(self, ctx, user: discord.Member, channel: discord.TextChannel):
+        guild = ctx.guild
+        if not guild:
+            await ctx.respond("This command can only be used in a server.", ephemeral=True)
+            return
+
+        try:
+            # Check if the user already has a personal channel
+            existing_channel_id = await get_user_channel(guild.id, user.id)
+            if existing_channel_id:
+                existing_channel = guild.get_channel(existing_channel_id)
+                if existing_channel:
+                    await ctx.respond(
+                        f"{user.mention} already has a personal channel: {existing_channel.mention}\n"
+                        f"Please delete their existing channel first before assigning a new one.",
+                        ephemeral=True
+                    )
+                    return
+                # Channel was deleted but record still exists - clear the database entry
+                await delete_user_channel(guild.id, user.id)
+
+            # Check if the channel is already assigned to someone else
+            query = "SELECT user_id FROM user_private_channels WHERE guild_id = :guild_id AND channel_id = :channel_id"
+            result = await database.fetch_one(query=query, values={"guild_id": guild.id, "channel_id": channel.id})
+            if result:
+                other_user_id = result["user_id"]
+                other_user = guild.get_member(other_user_id)
+                user_mention = other_user.mention if other_user else f"User ID {other_user_id}"
+                await ctx.respond(
+                    f"{channel.mention} is already assigned to {user_mention}\n"
+                    f"Please unassign it first or choose a different channel.",
+                    ephemeral=True
+                )
+                return
+
+            # Store the channel in the database
+            await create_user_channel(
+                guild_id=guild.id,
+                user_id=user.id,
+                channel_id=channel.id,
+                username=str(user),
+                guild_name=guild.name
+            )
+
+            await ctx.respond(f"Successfully assigned {channel.mention} as {user.mention}'s personal channel.", ephemeral=True)
+        except discord.Forbidden:
+            await ctx.respond("I don't have permission to manage channels. Please check my permissions.", ephemeral=True)
+        except discord.HTTPException as e:
+            error_msg = e.text if hasattr(e, 'text') else str(e)
+            logging.error(f"Failed to set channel for user {user.id} in guild {guild.id}: {error_msg}")
+            await ctx.respond("Failed to set channel. Please try again later.", ephemeral=True)
+        except Exception as e:
+            logging.error(f"Unexpected error setting channel for user {user.id} in guild {guild.id}: {str(e)}")
+            await ctx.respond("An unexpected error occurred. Please try again later.", ephemeral=True)
+
     def __init__(self, bot):
         self.bot = bot
     
