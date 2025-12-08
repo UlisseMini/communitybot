@@ -232,6 +232,66 @@ async def set_welcome_message(guild_id: int, message: str, guild_name: str = Non
         )
 
 
+async def update_last_journal_message(guild_id: int, user_id: int):
+    """Update the last journal message timestamp for a user's personal channel."""
+    timestamp = datetime.utcnow().isoformat()
+    await database.execute(
+        user_private_channels.update().where(
+            (user_private_channels.c.guild_id == guild_id) &
+            (user_private_channels.c.user_id == user_id)
+        ).values(last_journal_message=timestamp)
+    )
+
+
+async def get_active_users(guild_id: int, days: int = 3) -> list[int]:
+    """Get list of user IDs who have journaled in their personal channel within the last N days."""
+    cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+    query = user_private_channels.select().where(
+        (user_private_channels.c.guild_id == guild_id) &
+        (user_private_channels.c.last_journal_message >= cutoff)
+    )
+    results = await database.fetch_all(query)
+    return [row["user_id"] for row in results]
+
+
+async def get_active_role_id(guild_id: int) -> int | None:
+    """Get the active role ID for a guild."""
+    query = guild_settings.select().where(guild_settings.c.guild_id == guild_id)
+    result = await database.fetch_one(query)
+    return result["active_role_id"] if result else None
+
+
+async def set_active_role_id(guild_id: int, role_id: int, guild_name: str = None):
+    """Set the active role ID for a guild."""
+    # Ensure guild exists
+    guild_query = guilds.select().where(guilds.c.guild_id == guild_id)
+    guild_exists = await database.fetch_one(guild_query)
+    if not guild_exists:
+        await database.execute(
+            guilds.insert().values(guild_id=guild_id, name=guild_name)
+        )
+
+    # Check if guild_settings record already exists
+    settings_query = guild_settings.select().where(guild_settings.c.guild_id == guild_id)
+    existing_record = await database.fetch_one(settings_query)
+
+    if existing_record:
+        # Update existing record
+        await database.execute(
+            guild_settings.update().where(
+                guild_settings.c.guild_id == guild_id
+            ).values(active_role_id=role_id)
+        )
+    else:
+        # Create new record
+        await database.execute(
+            guild_settings.insert().values(
+                guild_id=guild_id,
+                active_role_id=role_id
+            )
+        )
+
+
 async def init_database():
     """Initialize the database by creating all tables if they don't exist."""
     # Create a synchronous engine for table creation

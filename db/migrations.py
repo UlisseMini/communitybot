@@ -13,6 +13,18 @@ MIGRATIONS = [
         )
         """
     ),
+    (
+        "002_add_last_journal_message",
+        """
+        ALTER TABLE user_private_channels ADD COLUMN last_journal_message TEXT
+        """
+    ),
+    (
+        "003_add_active_role_id",
+        """
+        ALTER TABLE guild_settings ADD COLUMN active_role_id BIGINT
+        """
+    ),
 ]
 
 

@@ -329,6 +329,17 @@ class ChannelManagement(commands.Cog):
                 welcome_msg = welcome_template.replace("{name}", member.mention).replace("{channel}", channel.mention)
                 await channel.send(welcome_msg)
 
+            # Give them the active journaling role
+            from cogs.roles import get_or_create_active_role
+            role = await get_or_create_active_role(guild)
+            if role:
+                try:
+                    await member.add_roles(role, reason="New member with personal channel")
+                except discord.Forbidden:
+                    logging.error(f"Missing permissions to add role to user {member.id} in guild {guild.id}")
+                except discord.HTTPException as e:
+                    logging.error(f"Failed to add role to user {member.id} in guild {guild.id}: {str(e)}")
+
         except discord.Forbidden:
             logging.error(f"Missing permissions to create channel for {member.id} in guild {guild.id}")
         except discord.HTTPException as e:

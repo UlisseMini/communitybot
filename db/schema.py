@@ -24,7 +24,8 @@ user_private_channels = Table(
     Column("guild_id", BigInteger, ForeignKey("guilds.guild_id"), primary_key=True),
     Column("user_id", BigInteger, ForeignKey("users.user_id"), primary_key=True),
     Column("channel_id", BigInteger, nullable=False),
-    Column("created_at", String, server_default=func.now())
+    Column("created_at", String, server_default=func.now()),
+    Column("last_journal_message", String, nullable=True)
 )
 
 user_xp = Table(
@@ -50,5 +51,6 @@ guild_settings = Table(
     "guild_settings",
     metadata,
     Column("guild_id", BigInteger, ForeignKey("guilds.guild_id"), primary_key=True),
-    Column("welcome_message", String, nullable=True)
+    Column("welcome_message", String, nullable=True),
+    Column("active_role_id", BigInteger, nullable=True)
 )

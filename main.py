@@ -86,6 +86,7 @@ async def main():
         # Load all the cogs
         bot.load_extension("cogs.channel")
         bot.load_extension("cogs.xp")
+        bot.load_extension("cogs.roles")
         print("Cogs loaded")
 
         # Start the bot

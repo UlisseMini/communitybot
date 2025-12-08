@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import random
 from db.connection import database
-from db.actions import can_award_xp, award_xp, get_user_xp
+from db.actions import can_award_xp, award_xp, get_user_xp, get_user_channel, update_last_journal_message
 
 
 class XP(commands.Cog):
@@ -49,6 +49,12 @@ class XP(commands.Cog):
             username=username,
             guild_name=guild_name
         )
+
+        # Check if this message is in the user's personal channel
+        personal_channel_id = await get_user_channel(guild_id, user_id)
+        if personal_channel_id and message.channel.id == personal_channel_id:
+            # Update last journal message timestamp
+            await update_last_journal_message(guild_id, user_id)
     
     xp = discord.SlashCommandGroup("xp", "XP (experience points) management")
     @xp.command(description="View your XP statistics")
