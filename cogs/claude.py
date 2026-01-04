@@ -68,21 +68,22 @@ class ClaudeAI(commands.Cog):
             context_str = "\n".join(messages_history) if messages_history else "(No recent messages)"
 
             # Build the prompt with context
-            full_prompt = f"""Here is the recent conversation context from a Discord channel:
+            full_prompt = f"""User: "{prompt}"
+
+Here is the recent conversation context from a Discord channel:
 
 <conversation>
 {context_str}
 </conversation>
 
-User's question: {prompt}
-
 Please provide a helpful response based on the conversation context if relevant."""
 
             # Call Claude API
+            # ~900 tokens ≈ 3600 chars, leaving room within Discord's 4000 char bot limit
             response = client.messages.create(
-                max_tokens=1024,
+                max_tokens=900,
                 messages=[{"role": "user", "content": full_prompt}],
-                model="claude-sonnet-4-5-20250929",
+                model="claude-sonnet-4-5",
             )
 
             # Extract response text
@@ -91,12 +92,12 @@ Please provide a helpful response based on the conversation context if relevant.
             # Format response with who asked
             formatted = f"**{ctx.author.display_name}** asked: {prompt}\n\n{response_text}"
 
-            # Discord has a 2000 character limit, so split if needed
-            if len(formatted) <= 2000:
+            # Discord has a 4000 character limit for bots, so split if needed
+            if len(formatted) <= 4000:
                 await ctx.followup.send(formatted)
             else:
                 # Split into chunks
-                chunks = [formatted[i:i+1990] for i in range(0, len(formatted), 1990)]
+                chunks = [formatted[i:i+3990] for i in range(0, len(formatted), 3990)]
                 for i, chunk in enumerate(chunks):
                     if i == 0:
                         await ctx.followup.send(chunk)
