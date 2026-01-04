@@ -3,11 +3,20 @@ import time
 import asyncio
 import discord
 from dotenv import load_dotenv
+
+load_dotenv()
+
 # Create bot instance with intents
 intents = discord.Intents.default()
 intents.message_content = True  # Required to read message content for XP system
 intents.members = True  # Required to receive member join events
-bot = discord.Bot(intents=intents)
+
+# Use debug_guilds for instant command sync (guild commands sync immediately)
+debug_guilds = []
+if guild_id := os.getenv("MAIN_GUILD_ID"):
+    debug_guilds.append(int(guild_id))
+
+bot = discord.Bot(intents=intents, debug_guilds=debug_guilds or None)
 
 
 @bot.event
@@ -59,8 +68,6 @@ async def main():
     """Main function to run the bot"""
     print("Starting bot...")
 
-    # Get token from environment variable
-    load_dotenv()
     token = os.getenv("DISCORD_BOT_TOKEN")
 
     if not token:
