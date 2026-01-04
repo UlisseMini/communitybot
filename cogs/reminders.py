@@ -6,7 +6,7 @@ from discord.ext import commands, tasks
 from discord import option
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from db.actions import create_reminder, get_due_reminders, mark_reminder_completed
 
 
@@ -178,7 +178,7 @@ class Reminders(commands.Cog):
             pass  # Any other error, continue without preview
 
         # Calculate remind_at time
-        remind_at = datetime.utcnow() + delta
+        remind_at = datetime.now(timezone.utc) + delta
 
         # Store reminder
         await create_reminder(
