@@ -29,8 +29,8 @@ class ClaudeAI(commands.Cog):
 
     @discord.slash_command(name="claude", description="Ask Claude a question with context from recent messages")
     @option("prompt", description="Your question or prompt for Claude")
-    @option("context_messages", description="Number of past messages to include for context (default: 20)", required=False, min_value=1, max_value=100)
-    async def claude(self, ctx: discord.ApplicationContext, prompt: str, context_messages: int = 20):
+    @option("context_messages", description="Number of past messages to include for context (default: 50)", required=False, min_value=1, max_value=100)
+    async def claude(self, ctx: discord.ApplicationContext, prompt: str, context_messages: int = 50):
         client = get_client()
         if not client:
             await ctx.respond(
@@ -39,8 +39,8 @@ class ClaudeAI(commands.Cog):
             )
             return
 
-        # Defer response since API call may take a while
-        await ctx.defer()
+        # Defer response since API call may take a while (ephemeral=False makes it visible to all)
+        await ctx.defer(ephemeral=False)
 
         try:
             # Fetch recent messages from the channel
@@ -88,12 +88,15 @@ Please provide a helpful response based on the conversation context if relevant.
             # Extract response text
             response_text = response.content[0].text
 
+            # Format response with who asked
+            formatted = f"**{ctx.author.display_name}** asked: {prompt}\n\n{response_text}"
+
             # Discord has a 2000 character limit, so split if needed
-            if len(response_text) <= 2000:
-                await ctx.followup.send(response_text)
+            if len(formatted) <= 2000:
+                await ctx.followup.send(formatted)
             else:
                 # Split into chunks
-                chunks = [response_text[i:i+1990] for i in range(0, len(response_text), 1990)]
+                chunks = [formatted[i:i+1990] for i in range(0, len(formatted), 1990)]
                 for i, chunk in enumerate(chunks):
                     if i == 0:
                         await ctx.followup.send(chunk)
